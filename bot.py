@@ -18,7 +18,7 @@ RECITERS_PER_PAGE = 10
 SURAHS_PER_PAGE = 12
 
 # رابط النشر الحالي على Vercel
-WEBHOOK_URL = "https://quran-bot.vercel.app/"
+WEBHOOK_URL = "https://quran-boot.vercel.app/"
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (compatible; QuranBot/1.0; +https://mp3quran.net)",
