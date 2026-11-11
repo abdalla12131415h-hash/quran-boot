@@ -1,15 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 بوت تلجرام لاستماع وتحميل تلاوات القرآن الكريم.
-
-يعتمد البوت على الواجهة الرسمية لموقع mp3quran.net (الإصدار الثالث)
-لجلب قائمة القراء وقائمة السور، ثم إرسال ملف الصوت الخاص بكل سورة.
-
-مصمّم للعمل على استضافة Vercel عبر نظام Webhook باستخدام Flask.
-
-التشغيل:
-    pip install -r requirements.txt
-    python bot.py        # تشغيل محلي بنظام polling للتجربة
+الإصدار المحدث مع التفعيل التلقائي للويب هوك.
 """
 
 import requests
@@ -25,8 +17,8 @@ LANGUAGE = "ar"
 RECITERS_PER_PAGE = 10
 SURAHS_PER_PAGE = 12
 
-# رابط النشر على Vercel (يُستخدم في مسار /set_webhook)
-WEBHOOK_URL = "https://quran-bot-seven.vercel.app/"
+# رابط النشر الحالي على Vercel
+WEBHOOK_URL = "https://quran-bot.vercel.app/"
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (compatible; QuranBot/1.0; +https://mp3quran.net)",
@@ -41,7 +33,6 @@ _surahs_cache = None
 
 
 def get_reciters():
-    """جلب قائمة القراء من الواجهة مرّة واحدة وتخزينها مؤقتاً."""
     global _reciters_cache
     if _reciters_cache is None:
         try:
@@ -59,7 +50,6 @@ def get_reciters():
 
 
 def get_surahs():
-    """جلب قائمة السور كقاموس {رقم السورة: اسم السورة} مع التخزين المؤقت."""
     global _surahs_cache
     if _surahs_cache is None:
         try:
@@ -80,13 +70,11 @@ def get_surahs():
 
 
 def get_main_moshaf(reciter):
-    """إرجاع المصحف الأول المتاح للقارئ (يحتوي على رابط السيرفر وقائمة السور)."""
     moshafs = reciter.get("moshaf", [])
     return moshafs[0] if moshafs else None
 
 
 def build_reciters_keyboard(page):
-    """بناء لوحة أزرار القراء مع أزرار التنقل بين الصفحات."""
     reciters = get_reciters()
     if not reciters:
         return None
@@ -122,7 +110,6 @@ def build_reciters_keyboard(page):
 
 
 def build_surahs_keyboard(reciter_index, page):
-    """بناء لوحة أزرار سور قارئ محدّد مع التنقل بين الصفحات."""
     reciters = get_reciters()
     if reciter_index >= len(reciters):
         return None
@@ -173,7 +160,6 @@ def build_surahs_keyboard(reciter_index, page):
 
 @bot.message_handler(commands=["start", "help"])
 def send_welcome(message):
-    """الرد على الأمرين /start و /help بعرض قائمة القراء."""
     try:
         keyboard = build_reciters_keyboard(0)
         if not keyboard:
@@ -190,7 +176,6 @@ def send_welcome(message):
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("recpage|"))
 def handle_reciters_page(call):
-    """التنقل بين صفحات قائمة القراء."""
     try:
         page = int(call.data.split("|")[1])
         keyboard = build_reciters_keyboard(page)
@@ -208,7 +193,6 @@ def handle_reciters_page(call):
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("rec|"))
 def handle_reciter_selected(call):
-    """عرض سور القارئ المختار."""
     try:
         _, reciter_index, _page = call.data.split("|")
         reciter_index = int(reciter_index)
@@ -230,7 +214,6 @@ def handle_reciter_selected(call):
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("surpage|"))
 def handle_surahs_page(call):
-    """التنقل بين صفحات سور القارئ."""
     try:
         _, reciter_index, page = call.data.split("|")
         reciter_index = int(reciter_index)
@@ -252,7 +235,6 @@ def handle_surahs_page(call):
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("surah|"))
 def handle_surah_selected(call):
-    """إرسال ملف الصوت (mp3) الخاص بالسورة المختارة."""
     try:
         _, reciter_index, surah_id = call.data.split("|")
         reciter_index = int(reciter_index)
@@ -288,17 +270,22 @@ def handle_surah_selected(call):
 
 @bot.callback_query_handler(func=lambda call: call.data == "noop")
 def handle_noop(call):
-    """زر عرض رقم الصفحة الحالية (بدون إجراء)."""
     bot.answer_callback_query(call.id)
 
 
 # ---- تطبيق الويب (Webhook) الخاص باستضافة Vercel ----
 app = Flask(__name__)
 
+# تفعيل الويب هوك تلقائياً عند بدء التشغيل على السيرفر
+try:
+    bot.remove_webhook()
+    bot.set_webhook(url=WEBHOOK_URL)
+except Exception:
+    pass
+
 
 @app.route("/", methods=["GET", "POST"])
 def webhook():
-    """نقطة استقبال تحديثات تلجرام القادمة من Vercel."""
     if request.method == "POST":
         try:
             json_data = request.get_json(force=True)
@@ -313,7 +300,6 @@ def webhook():
 
 @app.route("/set_webhook", methods=["GET"])
 def set_webhook():
-    """ضبط الـ Webhook على رابط النشر (يُستدعى مرة واحدة بعد النشر)."""
     bot.remove_webhook()
     bot.set_webhook(url=WEBHOOK_URL)
     return f"تم ضبط الـ Webhook على: {WEBHOOK_URL}", 200
@@ -321,7 +307,6 @@ def set_webhook():
 
 @app.route("/webhook_info", methods=["GET"])
 def webhook_info():
-    """عرض حالة الـ Webhook الحالية المسجّلة لدى تلجرام لتسهيل تتبّع الأخطاء."""
     info = bot.get_webhook_info()
     return {
         "url": info.url,
@@ -331,9 +316,3 @@ def webhook_info():
         "max_connections": info.max_connections,
         "ip_address": info.ip_address,
     }, 200
-
-
-if __name__ == "__main__":
-    # تشغيل محلي بنظام polling للتجربة فقط (على Vercel لا يُستخدم هذا المسار)
-    print("Bot is running locally with polling...")
-    bot.infinity_polling()
